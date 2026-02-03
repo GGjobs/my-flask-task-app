@@ -1,75 +1,59 @@
-from flask import Flask, jsonify, request, render_template  # 增加了这一项
-from flask_sqlalchemy import SQLAlchemy  # 新增
 import os
-
+from flask import Flask, jsonify, request, render_template
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# 告诉 Flask 数据库文件存在哪
-import os
-
-# 获取当前文件所在的绝对路径
+# --- 关键修改 1：使用绝对路径定死数据库位置 ---
 basedir = os.path.abspath(os.path.dirname(__file__))
-
-# 拼接数据库文件的绝对路径
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'tasks.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# 定义数据库表结构（像画表格一样）
+# 数据库模型
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
+    title = db.Column(db.String(80), nullable=False)
     status = db.Column(db.String(20), default="未开始")
 
     def to_dict(self):
         return {"id": self.id, "title": self.title, "status": self.status}
 
+# --- 关键修改 2：在程序启动前强制创建数据库文件 ---
+with app.app_context():
+    db.create_all()
 
-# 定义一个路由：当你访问首页 "/" 时，要做什么
 @app.route("/")
-def hello():
-    return render_template("index.html")  # 让它返回网页
-
-#task函数
+def index():
+    return render_template("index.html")
 
 @app.route("/tasks", methods=["GET"])
 def get_tasks():
-    all_tasks = Task.query.all()
-    return jsonify([t.to_dict() for t in all_tasks])
+    tasks = Task.query.all()
+    return jsonify([t.to_dict() for t in tasks])
 
-#post
 @app.route("/tasks", methods=["POST"])
-def create_task():
+def add_task():
     data = request.get_json()
-    new_task = Task(title=data.get("title"))
+    if not data or 'title' not in data:
+        return jsonify({"error": "缺少标题"}), 400
+    new_task = Task(title=data['title'])
     db.session.add(new_task)
-    db.session.commit()  # 真正写入文件
+    db.session.commit()
     return jsonify(new_task.to_dict()), 201
 
-#updata
 @app.route("/tasks/<int:task_id>", methods=["PUT"])
 def update_task(task_id):
     data = request.get_json()
-    task = Task.query.get(task_id) # 从数据库找这个任务
-    if task:
-        task.status = data.get("status", task.status)
-        db.session.commit() # 别忘了提交更新！
-        return jsonify(task.to_dict())
-    return jsonify({"error": "Task not found"}), 404
-
-#delete
-@app.route("/tasks/<int:task_id>", methods=["DELETE"])
-def delete_task(task_id):
     task = Task.query.get(task_id)
     if task:
-        db.session.delete(task)
+        task.status = data.get("status", task.status)
         db.session.commit()
-        return jsonify({"message": "Task deleted"})
-    return jsonify({"error": "Task not found"}), 404
-# 启动程序
+        return jsonify(task.to_dict())
+    return jsonify({"error": "任务未找到"}), 404
+
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # 云端通常由 gunicorn 运行，但保留此项用于本地测试
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
