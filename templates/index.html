@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>我的任务管理器</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 500px; margin: 50px auto; background: #f0f2f5; line-height: 1.6; }
+        .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { color: #333; margin-top: 0; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 6px; outline: none; transition: border-color 0.3s; }
+        input:focus { border-color: #007bff; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        ul { padding: 0; }
+        li { 
+            background: #fff; list-style: none; padding: 12px; border: 1px solid #eee; 
+            margin-bottom: 8px; border-radius: 6px; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.2s;
+        }
+        li:hover { background: #f8f9fa; transform: translateX(5px); }
+        .done { text-decoration: line-through; color: #888; background: #fdfdfd; }
+        .status-tag { font-size: 0.8em; padding: 2px 8px; border-radius: 10px; background: #eee; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>✅ 任务清单</h2>
+        
+        <div class="input-group">
+            <input type="text" id="taskTitle" placeholder="想做点什么？">
+            <button onclick="addTask()">添加</button>
+        </div>
+
+        <ul id="taskList">
+            </ul>
+    </div>
+
+    <script>
+        // --- 1. 获取任务并显示 ---
+        async function loadTasks() {
+            try {
+                const res = await fetch('/tasks');
+                const tasks = await res.json();
+                const list = document.getElementById('taskList');
+                list.innerHTML = '';
+
+                tasks.forEach(t => {
+                    const isDone = t.status === '已完成';
+                    // 使用反引号 (`) 这里的引号嵌套非常关键
+                    list.innerHTML += `
+                        <li class="${isDone ? 'done' : ''}" onclick="toggleTask(${t.id}, '${t.status}')">
+                            <span>${t.title}</span>
+                            <span class="status-tag">${t.status}</span>
+                        </li>
+                    `;
+                });
+            } catch (err) {
+                console.error("加载失败:", err);
+            }
+        }
+
+        // --- 2. 添加新任务 ---
+        async function addTask() {
+            const input = document.getElementById('taskTitle');
+            if (!input.value) return;
+
+            await fetch('/tasks', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title: input.value })
+            });
+            
+            input.value = '';
+            loadTasks();
+        }
+
+        // --- 3. 切换状态 (核心逻辑) ---
+        async function toggleTask(id, currentStatus) {
+            console.log(`正在切换任务 ${id}，当前状态: ${currentStatus}`);
+            
+            const newStatus = (currentStatus === '未开始') ? '已完成' : '未开始';
+
+            try {
+                const res = await fetch(`/tasks/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (res.ok) {
+                    console.log("更新成功");
+                    loadTasks(); // 重新渲染页面
+                } else {
+                    console.error("更新失败，状态码:", res.status);
+                }
+            } catch (err) {
+                console.error("请求发送异常:", err);
+            }
+        }
+
+        // 页面打开时立即加载一次
+        loadTasks();
+    </script>
+</body>
+</html>
