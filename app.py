@@ -6,7 +6,12 @@ import os
 app = Flask(__name__)
 
 # 告诉 Flask 数据库文件存在哪
+import os
+
+# 获取当前文件所在的绝对路径
 basedir = os.path.abspath(os.path.dirname(__file__))
+
+# 拼接数据库文件的绝对路径
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'tasks.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
